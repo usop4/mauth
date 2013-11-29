@@ -11,7 +11,8 @@ mauth.phpを適当なライブラリに保存してください。
 
 ## PEAR::Authとの互換性について
 
-PEAR::Authのチュートリアルに記載されているサンプルをrequire_onceおよび$optionsを書き換えるだけで動作することが可能です。
+PEAR::Authのチュートリアルに記載されているサンプルをrequire_onceおよび$optionsを書き換えるだけで動作させることが可能です。
 
 http://pear.php.net/manual/en/package.authentication.auth.intro.php
 
+ただし、作者がよく使う関数から順に実装しており、サポートしていない関数もありますので、ご了承ください。
