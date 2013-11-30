@@ -308,10 +308,10 @@ class Auth {
         $users = [];
         $pdo = $this->setPDO();
         if(!empty($pdo)){
-            $stmt = $pdo->prepare("SELECT * FROM users");
+            $stmt = $pdo->prepare("SELECT ".$this->options["usernamecol"]." FROM users");
             $stmt->execute();
-            while( $user = $stmt->fetch(PDO::FETCH_ASSOC)){
-                array_push($users,$user);
+            while( $user = $stmt->fetch(PDO::FETCH_NUM)){
+                array_push($users,$user[0]);
             }
         }
         return $users;
