@@ -81,11 +81,13 @@ class Auth {
      */
     function setPDO(){
         $dsn = parse_url($this->options["dsn"]);
-        if("mysql"== $dsn["scheme"]){
+        //print_r($dsn);
+        if("mysqli"== $dsn["scheme"]){
             $pdo = new PDO(
                 'mysql:host='.$dsn["host"].';dbname='.str_replace("/","",$dsn["path"]),
                 $dsn["user"],
                 $dsn["pass"]);
+            $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES,false);
             return $pdo;
         }
         elseif("sqlite"==$dsn["scheme"]){
@@ -103,11 +105,12 @@ class Auth {
      */
     function setSaltPDO(){
         $dsn = parse_url($this->options["saltdsn"]);
-        if("mysql"== $dsn["scheme"]){
+        if("mysqli"== $dsn["scheme"]){
             $pdo = new PDO(
                 'mysql:host='.$dsn["host"].';dbname='.str_replace("/","",$dsn["path"]),
                 $dsn["user"],
                 $dsn["pass"]);
+            $pdo->setAttribute(PDO::ATTR_EMULATE_PREPARES,false);
             return $pdo;
         }
         elseif("sqlite"==$dsn["scheme"]){
@@ -159,13 +162,13 @@ class Auth {
      * @param string Password
      * @return mixed
      */
-    public function addUser($username,$password){
+    function addUser($username,$password){
 
         $salt = mcrypt_create_iv(22,MCRYPT_DEV_URANDOM);
         $hash = crypt($password,$salt);
 
         $pdo = $this->setPDO();
-        if(!empty($pdo)){
+        try{
             $sql = sprintf('INSERT INTO %s (%s,%s) VALUES (?,?)',
                 $this->options["table"],
                 $this->options["usernamecol"],
@@ -173,17 +176,33 @@ class Auth {
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$username,$hash]);
         }
-
-        $pdo = $this->setSaltPDO();
-        if(!empty($pdo)){
-            $sql = sprintf('INSERT INTO %s (%s,%s) VALUES (?,?)',
-                           $this->options["salttable"],
-                           $this->options["usernamecol"],
-                           $this->options["saltcol"]);
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$username,$salt]);
+        catch (PDOException $Exception ){
+            echo $Exception->getMessage();
         }
 
+        $pdo = $this->setSaltPDO();
+        try{
+            if($this->options["table"]!=$this->options["salttable"]){
+                $sql = sprintf('INSERT INTO %s (%s,%s) VALUES (?,?)',
+                    $this->options["salttable"],
+                    $this->options["usernamecol"],
+                    $this->options["saltcol"]);
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([$username,$salt]);
+            }
+            else{
+                $sql = sprintf('UPDATE %s SET %s=? WHERE %s=?',
+                    $this->options["salttable"],
+                    $this->options["saltcol"],
+                    $this->options["usernamecol"]);
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([$salt,$username]);
+            }
+        }
+        catch (PDOException $Exception ){
+            echo $Exception->getMessage();
+        }
+        return true;
     }
 
     /**
@@ -200,9 +219,9 @@ class Auth {
         $pdo = $this->setPDO();
         if(!empty($pdo)){
             $sql = sprintf('UPDATE %s SET %s=? WHERE %s=?',
-                           $this->options["table"],
-                           $this->options["passwordcol"],
-                           $this->options["usernamecol"]);
+                $this->options["table"],
+                $this->options["passwordcol"],
+                $this->options["usernamecol"]);
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$hash,$username]);
         }
@@ -210,13 +229,13 @@ class Auth {
         $pdo = $this->setSaltPDO();
         if(!empty($pdo)){
             $sql = sprintf('UPDATE %s SET %s=? WHERE %s=?',
-                           $this->options["salttable"],
-                           $this->options["saltcol"],
-                           $this->options["usernamecol"]);
+                $this->options["salttable"],
+                $this->options["saltcol"],
+                $this->options["usernamecol"]);
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$salt,$username]);
         }
-        
+
     }
 
 
@@ -230,8 +249,8 @@ class Auth {
         $pdo = $this->setPDO();
         if(!empty($pdo)){
             $sql = sprintf('DELETE FROM %s WHERE %s=?',
-                           $this->options["table"],
-                           $this->options["usernamecol"]);
+                $this->options["table"],
+                $this->options["usernamecol"]);
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$username]);
         }
@@ -239,8 +258,8 @@ class Auth {
         $pdo = $this->setSaltPDO();
         if(!empty($pdo)){
             $sql = sprintf('DELETE FROM %s WHERE %s=?',
-                           $this->options["salttable"],
-                           $this->options["usernamecol"]);
+                $this->options["salttable"],
+                $this->options["usernamecol"]);
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$username]);
         }
@@ -307,12 +326,18 @@ class Auth {
     function listUsers(){
         $users = [];
         $pdo = $this->setPDO();
-        if(!empty($pdo)){
-            $stmt = $pdo->prepare("SELECT ".$this->options["usernamecol"]." FROM users");
+        $sql = sprintf("SELECT %s FROM %s",
+            $this->options["usernamecol"],
+            $this->options["table"]);
+        try{
+            $stmt = $pdo->prepare($sql);
             $stmt->execute();
             while( $user = $stmt->fetch(PDO::FETCH_NUM)){
                 array_push($users,$user[0]);
             }
+        }
+        catch (PDOException $Exception ){
+            echo $Exception->getMessage();
         }
         return $users;
     }
